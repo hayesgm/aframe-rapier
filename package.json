@@ -12,7 +12,7 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.8.0-alpha.1",
     "aframe": "link:../dimlit/node_modules/aframe",
-    "super-three": "link:../dimlit/node_modules/aframe/node_modules/super-three"
+    "super-three": "link:../dimlit/node_modules/super-three"
   },
   "scripts": {
     "build": "tsc"
