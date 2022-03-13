@@ -8,12 +8,13 @@ import {
   World,
   init as initRapier,
 } from '@dimforge/rapier3d-compat';
-import { Body, getBodySync } from '../components/body';
+import { Body, getBody } from '../components/body';
 import { writeFile } from '../utils/file';
-import { Schema, fixSchema } from '../utils/schema';
-import { Vec3, Vec4, vecLen } from '../utils/vectors';
+import { fixSchema } from '../utils/schema';
+import { Vec3, Vec4, vecLen } from '../utils/vector';
 import { tdebug } from '../utils/debug';
 import { Quaternion as ThreeQuaternion } from 'super-three';
+import { registerAsyncSystem } from '../async-system';
 
 const { Quaternion } = THREE;
 
@@ -37,16 +38,11 @@ export interface CollisionEvent {
   otherCollider: number;
 }
 
-export interface RapierSystem {
-  el: Entity;
-  schema: Schema;
-  rapier: Promise<Rapier>;
-  data: {
+export interface RapierSystemData {
     debug: boolean;
     paused: boolean;
     autoSnap: number;
-  };
-}
+};
 
 export class Rapier {
   world: World;
@@ -69,6 +65,17 @@ export class Rapier {
     this.autoSnap = autoSnap;
     this.bodyMap = new Map();
     this.colliderMap = new Map();
+
+    this.attachKeyEventListeners();
+  }
+
+  static async initialize(el: Entity, data: RapierSystemData): Promise<Rapier> {
+    console.log('initializing physics system');
+    await initRapier();
+    console.log('physics system initialized');
+    let gravity = { x: 0.0, y: -9.81, z: 0.0 }; // TODO: from data
+    let world = new World(gravity);
+    return new Rapier(world, data.debug, data.paused, data.autoSnap);
   }
 
   registerEntity(entity: Entity): number {
@@ -121,7 +128,7 @@ export class Rapier {
     return this.getEntityById(entityId);
   }
 
-  step(timestamp: number, delta: number) {
+  async step(timestamp: number, delta: number) {
     this.autoSnapshot(timestamp);
 
     if (!this.paused) {
@@ -144,7 +151,7 @@ export class Rapier {
         throw e;
       }
 
-      eventQueue.drainIntersectionEvents((colliderHandle1, colliderHandle2, intersecting) => {
+      eventQueue.drainIntersectionEvents((colliderHandle1: number, colliderHandle2: number, intersecting: boolean) => {
         let entity1 = this.getEntityByCollider(colliderHandle1);
         let entity2 = this.getEntityByCollider(colliderHandle2);
         console.log('collide', entity1, entity2);
@@ -153,8 +160,9 @@ export class Rapier {
           return;
         }
 
+        let event = intersecting ? 'collide' : 'separate';
         entity1.dispatchEvent(
-          new CustomEvent<CollisionEvent>('collide', {
+          new CustomEvent<CollisionEvent>(event, {
             detail: {
               collidingEntity: entity2,
               selfCollider: colliderHandle1,
@@ -162,8 +170,9 @@ export class Rapier {
             },
           })
         );
+
         entity2.dispatchEvent(
-          new CustomEvent<CollisionEvent>('collide', {
+          new CustomEvent<CollisionEvent>(event, {
             detail: {
               collidingEntity: entity1,
               selfCollider: colliderHandle2,
@@ -174,9 +183,8 @@ export class Rapier {
       });
 
       for (let [entityId, entity] of this.entities) {
-        let body = getBodySync(entity)!;
-        // console.log(entityId, body.type);
-        // console.log(body.position());
+        let body = await getBody(entity)!;
+
         if (body) {
           let position: Vec3 | undefined;
           let rotation: Vec4 | undefined;
@@ -187,9 +195,13 @@ export class Rapier {
             position = body.position();
             rotation = body.rotation();
           } else if (body.isPositionBased()) {
-            position = body.getNextPosition();
+            position = body.nextPosition;
             if (position !== undefined) {
               body.setPosition(position);
+            }
+            rotation = body.nextRotation;
+            if (rotation !== undefined) {
+              body.setRotation(rotation);
             }
           } else {
             throw new Error(`Unknown body type: ${body.type}`);
@@ -268,58 +280,20 @@ export class Rapier {
 
     await writeFile(snapshot);
   }
-}
 
-export function getSystem(): RapierSystem {
-  let scene = document.querySelector('a-scene');
-  if (!scene) {
-    throw new Error('Missing scene trying to initiate rapier-physics');
+  remove() {
+    this.removeKeyEventListeners();
   }
-  let res = scene.systems['rapier-physics'];
-  if (!res) {
-    throw new Error('Must initialize rapier-physics system on scene');
+
+  tick(timestamp: number, delta: number) {
+    this.step(timestamp, delta);
   }
-  return res as unknown as RapierSystem;
 }
 
-export async function getRapier(): Promise<Rapier> {
-  return await getSystem().rapier;
-}
-
-registerSystem('rapier-physics', {
+export const getRapier = registerAsyncSystem('rapier-physics', Rapier.initialize, {
   schema: {
     debug: { type: 'boolean' },
     paused: { type: 'boolean' },
     autoSnap: { type: 'number', default: 0 },
-  },
-  init: async function (this: RapierSystem) {
-    this.data = fixSchema(this.data, this.schema);
-    let resolve: (rapier: Rapier) => void;
-    this.rapier = new Promise((resolve_) => (resolve = resolve_));
-    console.log('initializing physics system');
-    await initRapier();
-    let gravity = { x: 0.0, y: -9.81, z: 0.0 }; // TODO: from data
-    let world = new World(gravity);
-    let rapier = new Rapier(world, this.data.debug, this.data.paused, this.data.autoSnap);
-    rapier.attachKeyEventListeners();
-    resolve!(rapier);
-    console.log('physics system initialized');
-  },
-
-  remove: async function (this: RapierSystem) {
-    (await this.rapier).removeKeyEventListeners();
-  },
-
-  tick: async function (this: RapierSystem, timestamp: number, delta: number) {
-    let rapier = await this.rapier;
-    rapier.step(timestamp, delta);
-  },
-
-  pause: async function (this: RapierSystem) {
-    (await this.rapier).pause();
-  },
-
-  play: async function (this: RapierSystem) {
-    (await this.rapier).play();
   },
 });

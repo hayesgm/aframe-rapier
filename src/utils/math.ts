@@ -1,6 +1,6 @@
 import { THREE } from 'aframe';
 import { Euler, Quaternion as Quat } from 'super-three';
-import { Vec3, toRadArray } from './vectors';
+import { Vec3, toRadArray } from './vector';
 
 const { Quaternion } = THREE;
 

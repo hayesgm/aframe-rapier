@@ -1,7 +1,6 @@
+import { Schema } from 'aframe';
 
-export type Schema = { [field: string]: { type: string, default: any }};
-
-export function fixSchema<T extends object>(input: true | T, schema: Schema) {
+export function fixSchema<D extends object>(input: true | D, schema: Schema<D>) {
   let res: { [field: string]: any };
   if (input === true) {
     res = {};
@@ -14,5 +13,5 @@ export function fixSchema<T extends object>(input: true | T, schema: Schema) {
       res[field] = scheme.default;
     }
   }
-  return res as T;
+  return res as D;
 }
