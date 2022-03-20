@@ -3,10 +3,10 @@ import { getRapier } from '../systems/rapier-system';
 import { RigidBody, RigidBodyDesc, RigidBodyType } from '@dimforge/rapier3d-compat';
 import { quaternionFromEuler } from '../utils/math';
 import { Vec3, Vec4, fromVector3, toArray } from '../utils/vector';
-import { fixSchema } from '../utils/schema';
 import { Quaternion } from 'super-three';
 const { Vector3 } = THREE;
 import { registerAsyncComponent } from '../async-component';
+import { waitForMeshMatrix } from './from-mesh';
 
 const schema: Schema<BodyComponentData> = {
   type: { type: 'string', default: 'dynamic' },
@@ -54,12 +54,11 @@ export class Body {
   static async initialize(el: Entity, data: BodyComponentData): Promise<Body> {
     let rapier = await getRapier();
     let entityId = rapier.registerEntity(el);
-    let position = el.getAttribute('position') as Vec3;
-    let rotation = el.getAttribute('rotation');
-    let rotationQuat = quaternionFromEuler(rotation);
+    let { position, rotation } = await waitForMeshMatrix(el);
+    console.log(el.id, "canSleep", data.canSleep);
     let bodyDesc = getBodyDesc(data)
       .setTranslation(position.x, position.y, position.z)
-      .setRotation(rotationQuat)
+      .setRotation(rotation)
       .setLinvel(...toArray(data.linVel))
       .setAngvel(data.angVel)
       .setLinearDamping(data.linDamp)
@@ -130,7 +129,7 @@ export class Body {
   }
 }
 
-export const getBody = registerAsyncComponent<Body, BodyComponentData>('body', Body.initialize, { schema });
+export const getBody = registerAsyncComponent<Body, BodyComponentData>('body', Body.initialize, { schema, dependencies: [] });
 
 function getBodyDesc(data: BodyComponentData): RigidBodyDesc {
   return new RigidBodyDesc(getBodyType(data.type));

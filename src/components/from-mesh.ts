@@ -2,6 +2,8 @@ import { Entity, THREE, registerComponent } from 'aframe';
 import { Body, getBody } from './body';
 import { fixSchema } from '../utils/schema';
 import * as Vector from '../utils/vector';
+import { buildPromise } from '../utils/promise';
+import { Object3D } from 'super-three';
 const { Vector3, Quaternion } = THREE;
 
 registerComponent('from-mesh', {
@@ -21,35 +23,50 @@ registerComponent('from-mesh', {
   },
 
   tick: function () {
-    let matrix = meshMatrix(this.el);
-    if (matrix === null) {
-      return;
-    }
-    let { position, rotation, scale } = matrix;
+    let { position, rotation, scale } = getMeshMatrix(this.el);
     this.body?.setNextPosition(position);
     this.body?.setNextRotation(rotation);
   },
 });
 
-function meshMatrix(
-  el: Entity
-): { position: Vector.Vec3; rotation: Vector.Vec4; scale: Vector.Vec3 } | null {
+interface MeshMatrix {
+  position: Vector.Vec3;
+  rotation: Vector.Vec4;
+  scale: Vector.Vec3;
+}
+
+function meshMatrix(mesh: Object3D): MeshMatrix {
+  mesh.updateMatrixWorld();
+
+  let position = new Vector3();
+  let rotation = new Quaternion();
+  let scale = new Vector3();
+
+  mesh.matrixWorld.decompose(position, rotation, scale);
+
+  return {
+    position: Vector.fromVector3(position),
+    rotation: Vector.fromVector4(rotation),
+    scale: Vector.fromVector3(scale),
+  };
+}
+export function getMeshMatrix(el: Entity): MeshMatrix {
+  return meshMatrix(el.object3D);
+}
+
+export async function waitForMeshMatrix(el: Entity): Promise<MeshMatrix> {
   let mesh = el.getObject3D('mesh');
-  if (mesh) {
-    mesh.updateMatrixWorld();
-
-    let position = new Vector3();
-    let rotation = new Quaternion();
-    let scale = new Vector3();
-
-    mesh.matrixWorld.decompose(position, rotation, scale);
-
-    return {
-      position: Vector.fromVector3(position),
-      rotation: Vector.fromVector4(rotation),
-      scale: Vector.fromVector3(scale),
-    };
+  if (false) {
+    return Promise.resolve(meshMatrix(mesh));
   } else {
-    return null;
+    let [p, resolve, reject] = buildPromise<MeshMatrix>();
+    setTimeout(() => {
+      resolve(meshMatrix(el.getObject3D('mesh') ?? el.object3D));
+    }, 1000);
+    // el.addEventListener('loaded', function (evt: any) {
+    //   console.log({evt});
+      
+    // });
+    return p;
   }
 }

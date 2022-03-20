@@ -16,7 +16,7 @@ import { tdebug } from '../utils/debug';
 import { Quaternion as ThreeQuaternion } from 'super-three';
 import { registerAsyncSystem } from '../async-system';
 
-const { Quaternion } = THREE;
+const { Matrix4, Vector3, Quaternion } = THREE;
 
 interface CustomEventMap {
   collide: CustomEvent<CollisionEvent>;
@@ -154,7 +154,6 @@ export class Rapier {
       eventQueue.drainIntersectionEvents((colliderHandle1: number, colliderHandle2: number, intersecting: boolean) => {
         let entity1 = this.getEntityByCollider(colliderHandle1);
         let entity2 = this.getEntityByCollider(colliderHandle2);
-        console.log('collide', entity1, entity2);
 
         if (entity1 === null || entity2 === null) {
           return;
@@ -208,13 +207,28 @@ export class Rapier {
           }
 
           if (body.follow) {
-            if (position) {
-              entity.object3D.position.set(position.x, position.y, position.z);
-              entity.object3D.position.set(position.x, position.y, position.z);
+            let parent = entity.object3D.parent;
+            let inverseParentPosition = new Vector3();
+            let inverseParentRotation = new Quaternion();
+            let inverseParentScale = new Vector3();
+
+            if (false) {
+              parent!.updateMatrixWorld();
+              let inverseParent = new Matrix4();
+              inverseParent.copy(parent!.matrixWorld);
+              inverseParent.invert();
+              inverseParent.decompose(inverseParentPosition, inverseParentRotation, inverseParentScale);
+            }
+
+            if (position) {              
+              let positionVec = new Vector3(position.x, position.y, position.z);
+              positionVec.add(inverseParentPosition);
+              entity.object3D.position.set(positionVec.x, positionVec.y, positionVec.z);
             }
 
             if (rotation) {
               let q = new Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
+              q.multiply(inverseParentRotation);
               entity.object3D.rotation.setFromQuaternion(q);
             }
           }

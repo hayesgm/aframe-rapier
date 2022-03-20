@@ -7,7 +7,7 @@ export interface AsyncComponent<T extends PartialComponent<D>, D extends object>
 };
 
 export type PartialComponent<D extends object> =
-  Omit<Partial<Component<D>>, 'update'> & { update: (newData: D, oldData: D) => void };
+  Omit<Partial<Component<D>>, 'update'> & { update?: (newData: D, oldData: D) => void };
 
 export type PartialComponentDefinition<D extends object> =
   Omit<Partial<ComponentDefinition<D>>, 'schema'> & { schema: Schema<D> }

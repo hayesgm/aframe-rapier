@@ -27,6 +27,7 @@ const schema: Schema<ColliderComponentData> = {
   restitution: { type: 'number', default: 0 },
   restitutionCombineRule: { type: 'string', default: 'average' },
   sensor: { type: 'boolean' },
+  collisionGroups: { type: 'number', default: 0xffffffff },
 };
 
 interface ColliderComponentData {
@@ -39,6 +40,7 @@ interface ColliderComponentData {
   restitution: number;
   restitutionCombineRule: string;
   sensor: boolean;
+  collisionGroups: number;
 }
 
 class Collider {
@@ -54,7 +56,11 @@ class Collider {
     this.colliderDesc = colliderDesc;
   }
 
-  static async initialize(el: Entity, data: ColliderComponentData, attrName: string): Promise<Collider> {
+  static async initialize(
+    el: Entity,
+    data: ColliderComponentData,
+    attrName: string
+  ): Promise<Collider> {
     let [p, resolve, reject] = buildPromise<Collider>();
     let rapier = await getRapier();
 
@@ -91,6 +97,10 @@ class Collider {
     if (data.sensor !== oldData.sensor) {
       this.collider.setSensor(data.sensor);
       this.colliderDesc.setSensor(data.sensor);
+    }
+
+    if (data.collisionGroups !== oldData.collisionGroups) {
+      this.collider.setCollisionGroups(data.collisionGroups);
     }
 
     // TODO: This is _weird_
@@ -148,7 +158,7 @@ function getColliderDesc(
     }
     translation = toVector3(data.translation);
   }
-  console.log({ shape: data.shape, size, translation });
+  // console.log({ shape: data.shape, size, translation });
 
   let collider;
   if (data.shape === 'box') {
@@ -168,7 +178,7 @@ function getColliderDesc(
     .setFriction(data.friction)
     .setRestitution(data.restitution)
     .setRestitutionCombineRule(getRestitutionCombineRule(data.restitutionCombineRule))
-    .setActiveCollisionTypes(ActiveCollisionTypes.DEFAULT |  ActiveCollisionTypes.KINEMATIC_STATIC)
+    .setActiveCollisionTypes(ActiveCollisionTypes.DEFAULT | ActiveCollisionTypes.KINEMATIC_STATIC)
     .setActiveEvents(ActiveEvents.INTERSECTION_EVENTS)
     .setSensor(data.sensor);
 }
